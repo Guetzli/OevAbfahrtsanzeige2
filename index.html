@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abfahrten Brugg AG</title>
+<style>
+  :root {
+    --bg: #f4f4f4; --fg: #1a1a1a; --card: #fff; --muted: #666;
+    --accent: #eb0000; --line: #e0e0e0; --late: #c60018; --ok: #0a7d2c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121212; --fg: #eee; --card: #1e1e1e; --muted: #999; --line: #333; --late: #ff6b6b; --ok: #4cd37b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+  header { background: var(--accent); color: #fff; padding: 16px; }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  header p { margin: 4px 0 0; font-size: .85rem; opacity: .9; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 8px; overflow: hidden; }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
+  th { font-size: .75rem; text-transform: uppercase; color: var(--muted); }
+  td.time { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .line { display: inline-block; min-width: 3.2em; text-align: center; padding: 2px 8px; border-radius: 4px; background: var(--fg); color: var(--bg); font-weight: 700; font-size: .85rem; }
+  .delay { color: var(--late); font-size: .8rem; margin-left: 4px; }
+  .ontime { color: var(--ok); font-size: .8rem; margin-left: 4px; }
+  .status { margin: 12px 0; color: var(--muted); font-size: .85rem; }
+  .error { color: var(--late); }
+  button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--fg); cursor: pointer; }
+  @media (max-width: 480px) { th:nth-child(4), td:nth-child(4) { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Abfahrten Bahnhof Brugg AG</h1>
+  <p id="clock"></p>
+</header>
+<main>
+  <div class="status">
+    <span id="status">Lade …</span>
+    <button id="reload" type="button">Aktualisieren</button>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Zeit</th><th>Linie</th><th>Richtung</th><th>Gleis</th></tr>
+    </thead>
+    <tbody id="board"></tbody>
+  </table>
+</main>
+<script>
+  const API = "https://transport.opendata.ch/v1/stationboard?station=Brugg%20AG&limit=20";
+  const REFRESH_MS = 60000;
+
+  const board = document.getElementById("board");
+  const status = document.getElementById("status");
+  const clock = document.getElementById("clock");
+
+  const fmt = d => d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
+
+  function el(tag, text, cls) {
+    const e = document.createElement(tag);
+    if (text != null) e.textContent = text;
+    if (cls) e.className = cls;
+    return e;
+  }
+
+  function render(entries) {
+    board.replaceChildren();
+    for (const s of entries) {
+      const tr = document.createElement("tr");
+
+      const tdTime = el("td", fmt(new Date(s.stop.departure)), "time");
+      if (s.stop.delay > 0) tdTime.append(el("span", "+" + s.stop.delay + "′", "delay"));
+      else tdTime.append(el("span", "pünktlich", "ontime"));
+
+      const tdLine = document.createElement("td");
+      tdLine.append(el("span", s.category + (s.number || ""), "line"));
+
+      tr.append(tdTime, tdLine, el("td", s.to), el("td", s.stop.platform || "–"));
+      board.append(tr);
+    }
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(API);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      render(data.stationboard);
+      status.textContent = "Stand: " + fmt(new Date());
+      status.classList.remove("error");
+    } catch (err) {
+      status.textContent = "Fehler beim Laden: " + err.message;
+      status.classList.add("error");
+    }
+  }
+
+  function tick() {
+    clock.textContent = new Date().toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long" }) + ", " + fmt(new Date());
+  }
+
+  document.getElementById("reload").addEventListener("click", load);
+  tick(); setInterval(tick, 1000);
+  load(); setInterval(load, REFRESH_MS);
+</script>
+</body>
+</html>
